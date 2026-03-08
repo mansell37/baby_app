@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hannah and Matts Shopping List</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="manifest" href="/manifest.json" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-row">
+        <h1>Hannah and Matts Shopping List</h1>
+        <form action="/logout" method="post" class="logout-form">
+          <button type="submit" class="btn-logout">Log out</button>
+        </form>
+      </div>
+      <div class="summary">
+        <div class="summary-total">
+          <span class="summary-label">Total to spend (AUD)</span>
+          <span class="summary-value" id="totalSpend">$0.00</span>
+        </div>
+        <div class="summary-count">
+          <span class="summary-label">Number of items</span>
+          <span class="summary-value" id="itemCount">0</span>
+        </div>
+        <div class="summary-todos">
+          <span class="summary-label">To-dos left</span>
+          <span class="summary-value" id="todosLeft">0</span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="nav">
+      <button type="button" class="nav-btn active" data-panel="shopping">Shopping</button>
+      <button type="button" class="nav-btn" data-panel="todos">To-dos</button>
+      <button type="button" class="nav-btn" data-panel="acquired">Acquired</button>
+    </nav>
+
+    <main class="main">
+      <section id="panel-shopping" class="panel active">
+        <div class="card">
+          <h2>Add item</h2>
+          <form id="addItemForm" class="form form-inline">
+            <input type="text" name="name" placeholder="Item name" required />
+            <input type="number" name="price" placeholder="Price (AUD)" step="0.01" min="0" required />
+            <button type="button" id="fetchPriceBtn" class="btn-fetch" title="Fetch current price from link">Fetch price</button>
+            <input type="number" name="qty" placeholder="Qty" min="1" value="1" />
+            <input type="url" name="link" placeholder="Product link (optional)" />
+            <input type="text" name="shipping_estimate" placeholder="e.g. 5–7 days, 2 weeks (optional)" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Shopping list</h2>
+          <div class="list-actions">
+            <button type="button" id="refreshAllPricesBtn" class="btn-refresh-all">Update all prices</button>
+            <span class="prices-as-of" id="pricesAsOfSummary"></span>
+          </div>
+          <ul id="shoppingList" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="panel-acquired" class="panel">
+        <div class="card">
+          <h2>Acquired</h2>
+          <p class="card-desc">Items you’ve already bought.</p>
+          <ul id="acquiredList" class="list"></ul>
+        </div>
+      </section>
+
+      <section id="panel-todos" class="panel">
+        <div class="card">
+          <h2>Add to-do</h2>
+          <form id="addTodoForm" class="form form-inline">
+            <input type="text" name="title" placeholder="Task" required />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>To-do list</h2>
+          <div class="todo-filters">
+            <button type="button" class="filter-btn active" data-filter="all">All</button>
+            <button type="button" class="filter-btn" data-filter="active">Active</button>
+            <button type="button" class="filter-btn" data-filter="done">Done</button>
+          </div>
+          <ul id="todoList" class="list todo-list"></ul>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="itemRow">
+    <li class="list-item" data-id="">
+      <span class="item-name"></span>
+      <span class="item-price"></span>
+      <span class="item-price-as-of"></span>
+      <span class="item-qty"></span>
+      <span class="item-shipping"></span>
+      <span class="item-link-wrap"></span>
+      <div class="item-actions">
+        <button type="button" class="btn-bought" title="Mark as bought">Bought</button>
+        <button type="button" class="btn-edit" title="Edit">Edit</button>
+        <button type="button" class="btn-delete" title="Delete">Delete</button>
+      </div>
+    </li>
+  </template>
+
+  <template id="acquiredRow">
+    <li class="list-item acquired-item" data-id="">
+      <span class="item-name"></span>
+      <span class="item-price"></span>
+      <span class="item-price-as-of"></span>
+      <span class="item-qty"></span>
+      <span class="item-shipping"></span>
+      <span class="item-link-wrap"></span>
+    </li>
+  </template>
+
+  <template id="todoRow">
+    <li class="list-item todo-item" data-id="">
+      <label class="todo-label">
+        <input type="checkbox" class="todo-checkbox" />
+        <span class="todo-title"></span>
+      </label>
+      <button type="button" class="btn-delete" title="Delete">Delete</button>
+    </li>
+  </template>
+
+  <script src="/script.js"></script>
+</body>
+</html>
