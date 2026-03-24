@@ -36,6 +36,7 @@
       <button type="button" class="nav-btn active" data-panel="shopping">Shopping</button>
       <button type="button" class="nav-btn" data-panel="todos">To-dos</button>
       <button type="button" class="nav-btn" data-panel="acquired">Acquired</button>
+      <button type="button" class="nav-btn" data-panel="notify">Notify Matt</button>
     </nav>
 
     <main class="main">
@@ -65,7 +66,7 @@
       <section id="panel-acquired" class="panel">
         <div class="card">
           <h2>Acquired</h2>
-          <p class="card-desc">Items you’ve already bought.</p>
+          <p class="card-desc">Items you've already bought.</p>
           <ul id="acquiredList" class="list"></ul>
         </div>
       </section>
@@ -86,6 +87,38 @@
             <button type="button" class="filter-btn" data-filter="done">Done</button>
           </div>
           <ul id="todoList" class="list todo-list"></ul>
+        </div>
+      </section>
+
+      <section id="panel-notify" class="panel">
+        <div class="card" id="notifyConfigCard">
+          <h2>WhatsApp Notifications</h2>
+          <p class="card-desc" id="notifyConfigDesc">Loading…</p>
+        </div>
+        <div class="card">
+          <h2>Send hourly reminder to Matt</h2>
+          <form id="addNotifyForm" class="form notify-form">
+            <div class="notify-field">
+              <label for="notifyTitle">What should Matt be reminded about?</label>
+              <input type="text" id="notifyTitle" name="title" placeholder="e.g. Pick up nappies from Coles" required />
+            </div>
+            <div class="notify-field">
+              <label for="notifyInterval">Remind every</label>
+              <div class="notify-interval-row">
+                <input type="number" id="notifyInterval" name="interval_hours" value="1" min="1" max="24" />
+                <span class="notify-interval-unit">hour(s)</span>
+              </div>
+            </div>
+            <div class="notify-field">
+              <label>Sending to</label>
+              <span class="notify-recipient" id="notifyRecipient">+61415561563 (Matt)</span>
+            </div>
+            <button type="submit" class="btn-notify-add">Start reminders</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Active reminders</h2>
+          <ul id="notifyList" class="list notify-list"></ul>
         </div>
       </section>
     </main>
@@ -125,6 +158,19 @@
         <span class="todo-title"></span>
       </label>
       <button type="button" class="btn-delete" title="Delete">Delete</button>
+    </li>
+  </template>
+
+  <template id="notifyRow">
+    <li class="list-item notify-item" data-id="">
+      <div class="notify-item-main">
+        <span class="notify-item-title"></span>
+        <span class="notify-item-meta"></span>
+      </div>
+      <div class="notify-item-actions">
+        <button type="button" class="btn-notify-toggle"></button>
+        <button type="button" class="btn-delete" title="Delete">Delete</button>
+      </div>
     </li>
   </template>
 

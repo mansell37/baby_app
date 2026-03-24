@@ -2,11 +2,14 @@
 Baby Shopping List Web App - Flask backend.
 Shared shopping list and to-dos with SQLite.
 Optional shared-password auth when SHARED_PASSWORD env is set.
+WhatsApp notifications via Twilio.
 """
 import json
 import os
 import re
 import sqlite3
+import threading
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -19,6 +22,12 @@ DB_PATH = Path(__file__).parent / "baby_list.db"
 
 SHARED_PASSWORD = os.environ.get("SHARED_PASSWORD", "").strip()
 REQUIRE_AUTH = bool(SHARED_PASSWORD)
+
+# WhatsApp / Twilio config
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+MATT_PHONE = os.environ.get("MATT_PHONE", "+61415561563")
 
 
 def _auth_ok():
@@ -68,6 +77,15 @@ def init_db():
             title TEXT NOT NULL,
             done INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS notification_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            recipient TEXT NOT NULL,
+            interval_hours INTEGER NOT NULL DEFAULT 1,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            last_sent_at TEXT
+        );
     """)
     # Migrations for existing DBs
     for col, sql in [
@@ -81,6 +99,87 @@ def init_db():
         except sqlite3.OperationalError:
             pass
     conn.close()
+
+
+# ----- WhatsApp / Twilio -----
+
+def send_whatsapp(to_number, message):
+    """Send a WhatsApp message via Twilio. Returns True on success, False otherwise."""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        print("[WhatsApp] Twilio credentials not set. Skipping send.")
+        return False
+    try:
+        from twilio.rest import Client
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        client.messages.create(
+            from_=TWILIO_WHATSAPP_FROM,
+            to=f"whatsapp:{to_number}",
+            body=message,
+        )
+        print(f"[WhatsApp] Sent to {to_number}: {message}")
+        return True
+    except Exception as e:
+        print(f"[WhatsApp] Failed to send to {to_number}: {e}")
+        return False
+
+
+def check_and_send_notifications():
+    """Run by scheduler: send WhatsApp for any overdue active notification tasks."""
+    now = datetime.utcnow()
+    try:
+        conn = get_db()
+        tasks = conn.execute(
+            "SELECT id, title, recipient, interval_hours, last_sent_at FROM notification_tasks WHERE active = 1"
+        ).fetchall()
+        for task in tasks:
+            last_sent = task["last_sent_at"]
+            interval_h = task["interval_hours"]
+            if last_sent is None:
+                due = True
+            else:
+                try:
+                    last_dt = datetime.strptime(last_sent, "%Y-%m-%dT%H:%M:%SZ")
+                    due = (now - last_dt) >= timedelta(hours=interval_h)
+                except ValueError:
+                    due = True
+            if due:
+                msg = f"Reminder from Hannah: {task['title']}"
+                ok = send_whatsapp(task["recipient"], msg)
+                if ok:
+                    conn.execute(
+                        "UPDATE notification_tasks SET last_sent_at = ? WHERE id = ?",
+                        (now.strftime("%Y-%m-%dT%H:%M:%SZ"), task["id"]),
+                    )
+                    conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[Scheduler] Error in check_and_send_notifications: {e}")
+
+
+# Start the background scheduler (once per process)
+_scheduler_lock = threading.Lock()
+_scheduler_started = False
+
+
+def _start_scheduler():
+    global _scheduler_started
+    with _scheduler_lock:
+        if _scheduler_started:
+            return
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+            scheduler = BackgroundScheduler()
+            # Check every 10 minutes; send if interval elapsed
+            scheduler.add_job(check_and_send_notifications, "interval", minutes=10, id="whatsapp_notify")
+            scheduler.start()
+            _scheduler_started = True
+            print("[Scheduler] WhatsApp notification scheduler started.")
+        except Exception as e:
+            print(f"[Scheduler] Could not start scheduler: {e}")
+
+
+init_db()
+_start_scheduler()
 
 
 def _extract_price_from_html(html, url):
@@ -324,7 +423,6 @@ def set_item_acquired(item_id):
 @app.route("/api/items/refresh-prices", methods=["POST"])
 def refresh_all_prices():
     """Fetch current price from each item's link and update. Sets price_updated_at."""
-    from datetime import datetime
     conn = get_db()
     rows = conn.execute(
         "SELECT id, name, link FROM shopping_items WHERE acquired = 0 AND link IS NOT NULL AND link != ''"
@@ -377,6 +475,82 @@ def summary():
     todo_count = conn.execute("SELECT COUNT(*) AS c FROM todos WHERE done = 0").fetchone()["c"]
     conn.close()
     return jsonify({"total": total, "item_count": item_count, "todos_left": todo_count})
+
+
+# ----- Notification tasks API -----
+
+@app.route("/api/notifications", methods=["GET"])
+def list_notifications():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, title, recipient, interval_hours, active, created_at, last_sent_at FROM notification_tasks ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/notifications", methods=["POST"])
+def add_notification():
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    recipient = (data.get("recipient") or MATT_PHONE).strip()
+    interval_hours = int(data.get("interval_hours") or 1)
+    if interval_hours < 1:
+        interval_hours = 1
+    now_iso = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn = get_db()
+    cur = conn.execute(
+        "INSERT INTO notification_tasks (title, recipient, interval_hours, active, created_at) VALUES (?, ?, ?, 1, ?)",
+        (title, recipient, interval_hours, now_iso),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT id, title, recipient, interval_hours, active, created_at, last_sent_at FROM notification_tasks WHERE id = ?",
+        (cur.lastrowid,),
+    ).fetchone()
+    conn.close()
+    return jsonify(dict(row)), 201
+
+
+@app.route("/api/notifications/<int:notif_id>", methods=["PATCH"])
+def update_notification(notif_id):
+    data = request.get_json() or {}
+    conn = get_db()
+    row = conn.execute("SELECT id FROM notification_tasks WHERE id = ?", (notif_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Not found"}), 404
+    if "active" in data:
+        active = 1 if data["active"] else 0
+        conn.execute("UPDATE notification_tasks SET active = ? WHERE id = ?", (active, notif_id))
+    conn.commit()
+    row = conn.execute(
+        "SELECT id, title, recipient, interval_hours, active, created_at, last_sent_at FROM notification_tasks WHERE id = ?",
+        (notif_id,),
+    ).fetchone()
+    conn.close()
+    return jsonify(dict(row))
+
+
+@app.route("/api/notifications/<int:notif_id>", methods=["DELETE"])
+def delete_notification(notif_id):
+    conn = get_db()
+    conn.execute("DELETE FROM notification_tasks WHERE id = ?", (notif_id,))
+    conn.commit()
+    conn.close()
+    return "", 204
+
+
+@app.route("/api/notifications/config", methods=["GET"])
+def notification_config():
+    """Return configuration info for the UI."""
+    twilio_configured = bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN)
+    return jsonify({
+        "matt_phone": MATT_PHONE,
+        "twilio_configured": twilio_configured,
+    })
 
 
 # ----- Login (when SHARED_PASSWORD is set) -----

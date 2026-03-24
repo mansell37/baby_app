@@ -467,3 +467,130 @@ body {
 #acquiredList.empty::before {
   content: "No acquired items yet. Mark items as Bought on the Shopping list.";
 }
+
+.notify-list.empty::before {
+  content: "No reminders yet. Add one above.";
+}
+
+/* Notification form */
+.notify-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.notify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notify-field label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.notify-field input[type="text"] {
+  min-height: var(--touch);
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+}
+
+.notify-interval-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notify-interval-row input[type="number"] {
+  min-height: var(--touch);
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 80px;
+}
+
+.notify-interval-unit {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.notify-recipient {
+  font-size: 1rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.btn-notify-add {
+  min-height: var(--touch);
+  padding: 0.5rem 1.25rem;
+  font-size: 1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.btn-notify-add:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-notify-add:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Notification list items */
+.notify-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.notify-item.notify-paused {
+  opacity: 0.6;
+}
+
+.notify-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  width: 100%;
+}
+
+.notify-item-title {
+  font-weight: 500;
+}
+
+.notify-item-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.notify-item-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-notify-toggle {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--border);
+  color: var(--text);
+}
+
+.btn-notify-toggle:hover {
+  background: #d0ccc6;
+}

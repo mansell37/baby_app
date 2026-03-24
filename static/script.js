@@ -444,6 +444,127 @@
     });
   });
 
+  // ----- Notifications -----
+
+  function loadNotificationConfig() {
+    return apiFetch(API + "/notifications/config").then(function (r) { return r.json(); });
+  }
+
+  function loadNotifications() {
+    return apiFetch(API + "/notifications").then(function (r) { return r.json(); });
+  }
+
+  function addNotification(data) {
+    return apiFetch(API + "/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then(function (r) {
+      if (!r.ok) throw new Error("Failed to create reminder");
+      return r.json();
+    });
+  }
+
+  function toggleNotification(id, active) {
+    return apiFetch(API + "/notifications/" + id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: active }),
+    }).then(function (r) {
+      if (!r.ok) throw new Error("Failed to update reminder");
+      return r.json();
+    });
+  }
+
+  function deleteNotification(id) {
+    return apiFetch(API + "/notifications/" + id, { method: "DELETE" }).then(function (r) {
+      if (!r.ok) throw new Error("Failed to delete reminder");
+    });
+  }
+
+  function formatNotifyMeta(notif) {
+    var parts = [];
+    var interval = notif.interval_hours === 1 ? "every hour" : "every " + notif.interval_hours + " hours";
+    parts.push(interval);
+    if (notif.last_sent_at) {
+      parts.push("last sent " + formatPriceAsOf(notif.last_sent_at));
+    } else {
+      parts.push("not sent yet");
+    }
+    parts.push(notif.active ? "active" : "paused");
+    return parts.join(" · ");
+  }
+
+  function renderNotifications(notifs) {
+    const list = document.getElementById("notifyList");
+    const tpl = document.getElementById("notifyRow");
+    list.innerHTML = "";
+    list.classList.toggle("empty", !notifs.length);
+
+    notifs.forEach(function (n) {
+      const li = tpl.content.cloneNode(true).querySelector("li");
+      li.dataset.id = n.id;
+      if (!n.active) li.classList.add("notify-paused");
+
+      li.querySelector(".notify-item-title").textContent = n.title;
+      li.querySelector(".notify-item-meta").textContent = formatNotifyMeta(n);
+
+      const toggleBtn = li.querySelector(".btn-notify-toggle");
+      toggleBtn.textContent = n.active ? "Pause" : "Resume";
+      toggleBtn.addEventListener("click", function () {
+        toggleNotification(n.id, !n.active).then(function () {
+          loadNotifications().then(renderNotifications);
+        });
+      });
+
+      li.querySelector(".btn-delete").addEventListener("click", function () {
+        deleteNotification(n.id).then(function () {
+          loadNotifications().then(renderNotifications);
+        });
+      });
+
+      list.appendChild(li);
+    });
+  }
+
+  function initNotifyPanel() {
+    loadNotificationConfig().then(function (cfg) {
+      var desc = document.getElementById("notifyConfigDesc");
+      var recipientEl = document.getElementById("notifyRecipient");
+      if (cfg.twilio_configured) {
+        desc.textContent = "WhatsApp reminders are enabled. Create a task below and Matt will be notified via WhatsApp on schedule.";
+        desc.style.color = "";
+      } else {
+        desc.textContent = "WhatsApp is not yet configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM environment variables to enable sending. Reminders will still be saved but messages won't be sent.";
+        desc.style.color = "#b85450";
+      }
+      recipientEl.textContent = cfg.matt_phone + " (Matt)";
+    });
+    loadNotifications().then(renderNotifications);
+  }
+
+  document.getElementById("addNotifyForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const fd = new FormData(this);
+    const title = (fd.get("title") || "").trim();
+    const interval = parseInt(fd.get("interval_hours"), 10) || 1;
+    if (!title) return;
+    const btn = this.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    addNotification({ title: title, interval_hours: interval }).then(function () {
+      e.target.reset();
+      document.getElementById("notifyInterval").value = 1;
+      btn.disabled = false;
+      btn.textContent = "Start reminders";
+      loadNotifications().then(renderNotifications);
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = "Start reminders";
+      alert("Could not create reminder. Please try again.");
+    });
+  });
+
   // ----- Nav -----
   document.querySelectorAll(".nav-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -456,6 +577,9 @@
       });
       if (btn.dataset.panel === "acquired") {
         loadAcquiredItems().then(renderAcquired);
+      }
+      if (btn.dataset.panel === "notify") {
+        initNotifyPanel();
       }
     });
   });
